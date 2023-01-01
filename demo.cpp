@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <string> 
 #include <cmath> 
-#include "phys_lib.h"
+#include "phys_lib.cpp"
 
-const int BG_A = 0xFF, BG_R = 0x11, BG_G = 0x11, BG_B = 0x11;
-const int INIT_SCREEN_WIDTH = 1800;
-const int INIT_SCREEN_HEIGHT = 1200;
+const int BG_A = 0xFF, BG_R = 0x28, BG_G = 0x2c, BG_B = 0x34;
+const int INIT_SCREEN_WIDTH = 1000;
+const int INIT_SCREEN_HEIGHT = 1000;
 
 int screenWidth = INIT_SCREEN_WIDTH;
 int screenHeight = INIT_SCREEN_HEIGHT;
@@ -14,7 +14,7 @@ int screenHeight = INIT_SCREEN_HEIGHT;
 SDL_Window * gWindow = NULL;
 SDL_Renderer * gRenderer = NULL;
 
-bool init() {
+bool initSDL() {
 	if(SDL_Init(SDL_INIT_VIDEO ) < 0) {
 		printf("SLD could not initialize. SDL Error: %s\n", SDL_GetError());
 		return false;
@@ -37,7 +37,7 @@ bool init() {
 	}
 }
 
-bool close() {
+bool closeSDL() {
 	SDL_DestroyRenderer(gRenderer);
 	SDL_DestroyWindow(gWindow);
 	gWindow = NULL;
@@ -46,12 +46,11 @@ bool close() {
 	SDL_Quit();
 }
 
-bool drawRect(int pos_x, int pos_y, int width, int height, int colorR, int colorG, int colorB, int colorA) {
+void drawRect(int pos_x, int pos_y, int width, int height, int colorR, int colorG, int colorB, int colorA) {
 	SDL_Rect fillRect = {pos_x, pos_y, width, height};
 	
 	SDL_SetRenderDrawColor(gRenderer, colorR, colorG, colorB, colorA);
 	SDL_RenderFillRect(gRenderer, &fillRect);
-
 }
 
 void drawCircle(int pos_x, int pos_y, int radius, int colorR, int colorG, int colorB, int colorA) {
@@ -75,7 +74,6 @@ void drawCircle(int pos_x, int pos_y, int radius, int colorR, int colorG, int co
 Ball ball[100];
 int color[100][3];
 int balls = 7;
-Ball targetBall;
 int frames;
 
 bool running = true;
@@ -89,11 +87,12 @@ void run(int delta_t) {
 	for (int i = 0; i < balls; i ++) {
 		ball[i].process_tick(delta_t);
 	}
-
 }
 
 
-int main(int argc, char* argv[]) {		
+int main(int argc, char* argv[]) {
+	// TODO: remove logic from rendering 
+	// TODO: refactor stuff into functions 
 	if(argc == 2) {
 		balls = std::stoi(argv[1]);
 	}
@@ -103,7 +102,7 @@ int main(int argc, char* argv[]) {
 		frames = std::stoi(argv[2]);
 	}
 	
-	if(!init()) {
+	if(!initSDL()) {
 		printf("Failed to initialize!\n");
 	} else {
 
@@ -112,21 +111,23 @@ int main(int argc, char* argv[]) {
 		
 		SDL_Event e;
 		for(int i = 0; i < balls; i++) {
-			ball[i] = Ball("Blue Ball", Vec2(100 + 10*i ,600), 2, Vec2(0,0.7 * (i == 0 ? 1 : 0)));		
-			color[i][0] = (0xFF / balls) * i;
+			ball[i] = Ball(Vec2(100 + 100*i ,500), 2, Vec2(0,0.05 * (i % 2 ? 1 : -1)));		
+			color[i][0] = (0xFF / (balls-1)) * (i);
 			color[i][1] = 0x22;
-			color[i][2] = (0xFF / balls) * (balls - i);
+			color[i][2] = (0xFF / (balls-1)) * (balls - i - 1);
 		}
 
-		targetBall = Ball("Target Ball", Vec2(1200, 800), 5, Vec2(0,0));
 
-		ball[0].add_spring(&targetBall, 0.001, 100);
-
+		const float spring_constant = 0.001;
+		const float spring_lenght = 100;
+		const float gravity_constant = 0.001;
 		for(int i = 1; i <= balls - 1; i++) {
 			for(int j = 0; j < i; j++) {
-				if(i == j + 1) {
-					ball[i].add_spring(&ball[j], 0.001, 10);
-					ball[j].add_spring(&ball[i], 0.001, 10);
+				if(1) {
+					ball[i].add_spring(&ball[j], spring_constant, spring_lenght);
+					ball[j].add_spring(&ball[i], spring_constant, spring_lenght);
+					//ball[i].add_gravity(&ball[j], gravity_constant);
+					//ball[j].add_gravity(&ball[i], gravity_constant);
 				}
 			}
 		}
@@ -136,17 +137,19 @@ int main(int argc, char* argv[]) {
 			// Check window events
 			while(SDL_PollEvent(&e) != 0) {
 				if(e.type == SDL_QUIT) {
+					printf("Quit event\n");
 					running = false;
 				}
 			}
 
-			// Run simulation frame 
+			// Run one simulation frame 
 			auto current_time = std::chrono::high_resolution_clock::now();
-			run( std::chrono::duration_cast<std::chrono::nanoseconds>(current_time - last_frame_time).count() );
+			auto delta_time_in_nano = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time - last_frame_time).count();
+			
+			run(delta_time_in_nano);
+			
 			last_frame_time = current_time;
 		
-			
-			
 			// draw ball positions 
 			for(int i = 0; i < balls; i++) {
 				int x = ball[i].pos.x;
@@ -158,7 +161,7 @@ int main(int argc, char* argv[]) {
 			// update screen
 			SDL_RenderPresent(gRenderer);
 			// clear positions and draw trail
-			// TODO: fix trails being overwriten
+			// TODO: render trails on background rendered 
 			for(int i = 0; i < balls; i++) {
 				int x = ball[i].pos.x;
 				int y = ball[i].pos.y;
@@ -166,11 +169,8 @@ int main(int argc, char* argv[]) {
 				drawCircle(x, y, ball_size, BG_R, BG_G, BG_B, BG_A);
 				//drawCircle(x, y, 5, 0x00, 0xFF, 0x00, 0xFF);
 			}
-
 		}
 	}
-	char ch = std::getchar();
 
-	close();
-
+	closeSDL();
 }
