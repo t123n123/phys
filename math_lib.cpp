@@ -1,7 +1,6 @@
 #include <math.h>
 #include <random> 
-
-const float NORM_EPS = 1e-6;
+#define EPS 1e-6
 
 struct Vec2 {
 	float x;
@@ -22,7 +21,7 @@ struct Vec2 {
 		return Vec2(x * a, y * a);
 	}
 
-	Vec2 norm(float eps = NORM_EPS) const {
+	Vec2 norm(float eps = EPS) const {
 		if(x*x + y*y < eps) {
 			// if vector is to close to 0, return a random normal vector
 			int randV = std::rand();

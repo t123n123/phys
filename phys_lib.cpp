@@ -12,7 +12,7 @@ struct Ball {
 	Vec2 velocity;
 
 	Vec2 force = Vec2(); 
-	float friction_factor = 0.001;
+	float friction_factor = 0.05;
 	float g_const = 10;
 	// acceleration = F / m 
 	// velocity += acceleration 
@@ -40,7 +40,9 @@ struct Ball {
 
 		// add all forces from grav pairs 	
 		for(int i = 0; i < gpairs; i++) {
+			Vec2 grav_force = compute_gravity_force(i);
 			total_force = total_force + compute_gravity_force(i);
+		
 		}
 		// add friction force 
 		// friction = friction_factor * normal
@@ -102,7 +104,9 @@ struct Ball {
 	Vec2 compute_gravity_force(int gravity_ind) {
 		Vec2 diff_vec = grav_ball[gravity_ind]->pos + (pos * -1);
 		float dist = diff_vec.dist();
-
+		if(dist < 5) {
+			return Vec2();
+		}
 		float force_dist = (grav_const[gravity_ind] * mass * grav_ball[gravity_ind]->mass) / (dist * dist);
 
 		Vec2 force_vec = diff_vec.norm() * force_dist;
